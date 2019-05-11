@@ -1,7 +1,7 @@
 import argparse
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1, 2, 3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3"
 
 import pdb
 import random
@@ -106,7 +106,7 @@ def main():
 
     #load poincare embedding
     poinc_emb = torch.load(
-              '/home/hermanni/icml_paper/poincare-embeddings/poinc_emb_10d.pth')
+              '/home/hermanni/deep_hsem/poincare_embeddings/poinc_emb_10d.pth')
     n_emb_dims = poinc_emb['model']['lt.weight'].shape[1]
     #change labels from synset names into imagenet format
     synset_list = [wn.synset(i) for i in poinc_emb['objects']]
@@ -344,10 +344,10 @@ def validate(val_loader, model, criterion):
     return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint_p10d_xe.pth.tar'):
+def save_checkpoint(state, is_best, filename='checkpoint_p10d_xe_0001.pth.tar'):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best_p10d_xe.pth.tar')
+        shutil.copyfile(filename, 'model_best_p10d_xe_0001.pth.tar')
 
 
 class PoincareVGG(nn.Module):
