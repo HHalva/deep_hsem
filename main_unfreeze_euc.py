@@ -1,7 +1,7 @@
 import argparse
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1, 2, 3"
 
 import pdb
 import random
@@ -24,8 +24,8 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
-from custom_loss import PoincareXEntropyLoss
-from poincare_model import PoincareDistance
+from custom_loss import EucXEntropyLoss
+from poincare_model import EuclideanDistance
 
 from nltk.corpus import wordnet as wn
 
@@ -84,8 +84,8 @@ best_prec1 = 0
 
 
 def main():
-    global args, best_prec1, poinc_emb
-    global imgnet_poinc_wgt, imgnet_poinc_labels
+    global args, best_prec1, euc_emb
+    global imgnet_emb_wgt, imgnet_emb_labels
     args = parser.parse_args()
 
 
@@ -104,14 +104,14 @@ def main():
                       'disable data parallelism.')
 
 
-    #load poincare embedding
-    poinc_emb = torch.load(
-              '/home/hermanni/deep_hsem/poincare_embeddings/poinc_emb_10d.pth')
-    n_emb_dims = poinc_emb['model']['lt.weight'].shape[1]
+    #load euclidean embedding
+    euc_emb = torch.load(
+              '/home/hermanni/deep_hsem/poincare_embeddings/euclid_emb_10d.pth')
+    n_emb_dims = euc_emb['model']['lt.weight'].shape[1]
     #change labels from synset names into imagenet format
-    synset_list = [wn.synset(i) for i in poinc_emb['objects']]
+    synset_list = [wn.synset(i) for i in euc_emb['objects']]
     offset_list = [wn.ss2of(j) for j in synset_list]
-    poinc_emb['objects'] = ['n'+i.split('-')[0] for i in offset_list]
+    euc_emb['objects'] = ['n'+i.split('-')[0] for i in offset_list]
 
     # create model
     if args.pretrained:
@@ -121,8 +121,8 @@ def main():
         print("=> creating model '{}'".format(args.arch))
         orig_vgg = models.__dict__[args.arch]()
 
-    #Change model to project into poincare space
-    model = PoincareVGG(orig_vgg, n_emb_dims, args.unfreeze)
+    #Change model to project into euc space
+    model = EucVGG(orig_vgg, n_emb_dims, args.unfreeze)
 
     if args.gpu is not None:
         model = model.cuda(args.gpu)
@@ -135,7 +135,7 @@ def main():
     cudnn.benchmark = True
 
     # define loss function (criterion) and optimizer
-    criterion = PoincareXEntropyLoss()
+    criterion = EucXEntropyLoss()
     if args.unfreeze:
         optimizer = torch.optim.SGD([{'params': model.features.parameters(),
                                       'lr': args.lr*10**-1},
@@ -186,10 +186,10 @@ def main():
 
     imgnet_classes = train_dataset.classes
 
-    #create poincare embedding that only contains imagenet synsets
-    imgnet2poinc_idx = [poinc_emb['objects'].index(i) for i in imgnet_classes]
-    imgnet_poinc_wgt = poinc_emb['model']['lt.weight'][[imgnet2poinc_idx]]
-    imgnet_poinc_labels = [poinc_emb['objects'][i] for i in imgnet2poinc_idx]
+    #create euclidean embedding that only contains imagenet synsets
+    imgnet2emb_idx = [euc_emb['objects'].index(i) for i in imgnet_classes]
+    imgnet_emb_wgt = euc_emb['model']['lt.weight'][[imgnet2emb_idx]]
+    imgnet_emb_labels = [euc_emb['objects'][i] for i in imgnet2emb_idx]
 
     train_loader = torch.utils.data.DataLoader(
                  train_dataset, batch_size=args.batch_size,
@@ -210,7 +210,6 @@ def main():
         return
 
     for epoch in range(args.start_epoch, args.epochs):
-
         lr_sched.step()
 
         # train the model 
@@ -256,16 +255,16 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         target = target.cuda(args.gpu, non_blocking=True)
         target_ids = [idx2class[i.item()] for i in target]
-        target_emb_idx = [imgnet_poinc_labels.index(i) for i in target_ids]
-        target_embs = imgnet_poinc_wgt[[target_emb_idx]]
+        target_emb_idx = [imgnet_emb_labels.index(i) for i in target_ids]
+        target_embs = imgnet_emb_wgt[[target_emb_idx]]
         target_embs = target_embs.cuda(args.gpu, non_blocking=True)
 
         # compute output & loss
         output = model(input)
-        loss = criterion(output, target, imgnet_poinc_wgt)
+        loss = criterion(output, target, imgnet_emb_wgt)
 
         # measure accuracy and record loss
-        prec1, prec5 = accuracy(output, imgnet_poinc_wgt, target, topk=(1, 5))
+        prec1, prec5 = accuracy(output, imgnet_emb_wgt, target, topk=(1, 5))
         losses.update(loss.item(), input.size(0))
         top1.update(prec1.item(), input.size(0))
         top5.update(prec5.item(), input.size(0))
@@ -311,16 +310,16 @@ def validate(val_loader, model, criterion):
             target = target.cuda(args.gpu, non_blocking=True)
 
             target_ids = [idx2class[i.item()] for i in target]
-            target_emb_idx = [imgnet_poinc_labels.index(i) for i in target_ids]
-            target_embs = imgnet_poinc_wgt[[target_emb_idx]]
+            target_emb_idx = [imgnet_emb_labels.index(i) for i in target_ids]
+            target_embs = imgnet_emb_wgt[[target_emb_idx]]
             target_embs = target_embs.cuda(args.gpu, non_blocking=True)
 
             # compute output
             output = model(input)
-            loss = criterion(output, target, imgnet_poinc_wgt)
+            loss = criterion(output, target, imgnet_emb_wgt)
 
             # measure accuracy and record loss
-            prec1, prec5  = accuracy(output, imgnet_poinc_wgt, target, topk=(1, 5))
+            prec1, prec5  = accuracy(output, imgnet_emb_wgt, target, topk=(1, 5))
             losses.update(loss.item(), input.size(0))
             top1.update(prec1.item(), input.size(0))
             top5.update(prec5.item(), input.size(0))
@@ -344,23 +343,19 @@ def validate(val_loader, model, criterion):
     return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint_p10d_xe_0001.pth.tar'):
+def save_checkpoint(state, is_best, filename='checkpoint_e10d_xe.pth.tar'):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best_p10d_xe_0001.pth.tar')
+        shutil.copyfile(filename, 'model_best_e10d_xe.pth.tar')
 
 
-class PoincareVGG(nn.Module):
+class EucVGG(nn.Module):
     def __init__(self, vgg_model, n_emb_dims, unfreeze=False):
-        super(PoincareVGG, self).__init__()
+        super(EucVGG, self).__init__()
         self.features = vgg_model.features
         self.fc = nn.Sequential(*list(
                                 vgg_model.classifier.children())[:-1])
         self.classifier = nn.Sequential(nn.Linear(4096, n_emb_dims))
-        self.dir_func = nn.Linear(n_emb_dims, n_emb_dims, bias=False)
-        self.norm_func = nn.Linear(n_emb_dims, 1, bias=False)
-        nn.init.uniform_(self.dir_func.weight, -0.001, 0.001)
-        nn.init.uniform_(self.norm_func.weight, -0.001, 0.001)
 
         #default is to unfreeze classifier i.e. fully connected layers
         self.unfreeze_features(unfreeze)
@@ -381,11 +376,8 @@ class PoincareVGG(nn.Module):
             f = self.fc(f)
         f = f.view(f.size(0), -1)
         y = self.classifier(f)
-        dir_vec = self.dir_func(y)
-        norms_magnitude = self.norm_func(y)
-        v = dir_vec.div(torch.norm(dir_vec, dim=1, keepdim=True))
-        p = F.sigmoid(norms_magnitude)
-        return p*v
+
+        return y
 
 
 class AverageMeter(object):
@@ -407,14 +399,14 @@ class AverageMeter(object):
 
 
 def prediction(output, all_embs, knn=1):
-    """Predicts the nearest class based on poincare distance"""
+    """Predicts the nearest class based on euclid distance"""
     with torch.no_grad():
         batch_size = output.size(0)
         n_emb_dims = output.size(1)
         n_classes = all_embs.size(0)
         expand_output = output.repeat(1, n_classes).view(-1, n_emb_dims)
         expand_all_embs = all_embs.repeat(batch_size, 1)
-        dists_to_all = PoincareDistance.apply(expand_output,
+        dists_to_all = EuclideanDistance.apply(expand_output,
                                               expand_all_embs.cuda(args.gpu,
                                                   non_blocking=True))
         topk_per_batch = torch.topk(dists_to_all.view(batch_size, -1),

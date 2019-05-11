@@ -2,9 +2,9 @@ import torch
 from torch import nn
 import torch.backends.cudnn as cudnn
 from poincare_model import PoincareDistance, PoincareDistance2
+from poincare_model import EuclideanDistance
 import pdb
 from torch.autograd import Function
-from torch.nn.modules.distance import PairwiseDistance
 
 cudnn.fastest = True
 
@@ -55,14 +55,14 @@ def euc_dist_to_label_emb(pred_embs, all_embs):
     n_classes = all_embs.size(0)
     #calculate distance of a predicted embedding to all possible true
     #embedding
-    return edist(pred_embs.repeat(1,
+    return EuclideanDistance(pred_embs.repeat(1,
                                   n_classes).view(-1, n_emb_dims),
                                   all_embs.repeat(batch_size,
                                   1).cuda(non_blocking=True)).view(
                                   batch_size, -1)
 
 
-class EmbXEntropyLoss(nn.Module):
+class EucXEntropyLoss(nn.Module):
     def __init__(self):
         super().__init__()
         self.xeloss = nn.CrossEntropyLoss().cuda()
@@ -74,6 +74,5 @@ class EmbXEntropyLoss(nn.Module):
         #since smaller distance is good need to inver the exponent in
         #softmax
         neg_scores = -1 * scores
+
         return self.xeloss(neg_scores, target_idx)
-
-
