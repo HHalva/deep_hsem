@@ -1,0 +1,6 @@
+python3 main_poincare.py --pretrained --emb_name 10d_poinc.bin --lr 3e-4 /mnt/fast-data15/datasets/ILSVRC/2012/clsloc/
+
+#for finetuning:
+python3 main_euclid.py --pretrained --emb_name 10d_euc.bin --lr 3e-6 --epochs 40 --resume 10d_euc.bin_checkp.pth.tar --unfreeze /mnt/fast-data15/datasets/ILSVRC/2012/clsloc/
+
+
