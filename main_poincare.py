@@ -1,7 +1,7 @@
 import argparse
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2, 3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 import pdb
 import random
@@ -121,7 +121,7 @@ def main():
 
     #load Poincare embedding
     poinc_emb = torch.load(args.emb_dir+args.emb_name)
-    print('EMBEDDING TYPE:', poinc_emb['manifold'])
+    print('EMBEDDING TYPE:', poinc_emb['conf']['manifold'])
     n_emb_dims = poinc_emb['embeddings'].shape[1]
     args.n_emb_dims = n_emb_dims
     print('NUM OF DIMENSIONS:', n_emb_dims)
@@ -173,7 +173,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print("=> creating model '{}'".format(args.arch))
         orig_vgg = models.__dict__[args.arch]()
 
-    #change model to project into Poincare embedding space
+    # change model to project into Poincare embedding space
     model = PoincareEmbVGG(orig_vgg, args.n_emb_dims, args.unfreeze)
 
     if args.distributed:
@@ -209,16 +209,16 @@ def main_worker(gpu, ngpus_per_node, args):
     criterion = PoincareXEntropyLoss()
 
     if args.unfreeze:
-        optimizer = torch.optim.Adam([{'params': model.features.parameters(),
+        optimizer = torch.optim.SGD([{'params': model.features.parameters(),
                                       'lr': args.lr*10**-1},
                                      {'params': model.fc.parameters()},
                                      {'params': model.classifier.parameters()}],
-                                    lr=args.lr,
-                                    #momentum=args.momentum
-                                    weight_decay=args.weight_decay)
+                                     lr=args.lr,
+                                     #momentum=args.momentum,
+                                     weight_decay=args.weight_decay)
 
     else:
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad,
+        optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad,
                                            model.parameters()),
                                            lr=args.lr,
                                            #momentum=args.momentum,
@@ -289,17 +289,19 @@ def main_worker(gpu, ngpus_per_node, args):
         validate(val_loader, model, criterion, args)
         return
 
-    #track training accuracy on validation set
+    # track training accuracy on validation set
     acc_tracker = open("acc_tracker.txt", "w")
 
-    #train over epochs
+    # train over epochs
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        lr_sched.step()
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
+
+        # adjust learning rate according to schedule
+        lr_sched.step()
 
         # evaluate on validation set
         prec1 = validate(val_loader, model, criterion, args)
@@ -345,7 +347,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if args.gpu is not None:
             images = images.cuda(args.gpu, non_blocking=True)
-        target = target.cuda(args.gpu, non_blocking=True)
+        if torch.cuda.is_available():
+            target = target.cuda(args.gpu, non_blocking=True)
 
         # compute output & loss
         output = model(images)
@@ -428,13 +431,13 @@ class PoincareEmbVGG(nn.Module):
         nn.init.uniform_(self.dir_func.weight, -0.001, 0.001)
         nn.init.uniform_(self.norm_func.weight, -0.001, 0.001)
 
-        #default is to unfreeze classifier i.e. fully connected layers
+        # default is to unfreeze classifier i.e. fully connected layers
         self.unfreeze_features(unfreeze)
         self.unfreeze_fc(True)
 
     def unfreeze_features(self, unfreeze):
-       for p in self.features.parameters():
-           p.requires_grad = unfreeze
+        for p in self.features.parameters():
+            p.requires_grad = unfreeze
 
     def unfreeze_fc(self, unfreeze):
         for p in self.fc.parameters():
@@ -453,6 +456,7 @@ class PoincareEmbVGG(nn.Module):
         p = F.sigmoid(norms_magnitude)
         return p*v
 
+
 def prediction(output, all_embs, knn=1):
     """Predicts the nearest class based on Poincare distance"""
     with torch.no_grad():
@@ -465,7 +469,7 @@ def prediction(output, all_embs, knn=1):
         topk_per_batch = torch.topk(dists_to_all.view(batch_size, -1),
                                      k=knn, dim=1,
                                      largest=False)[1]
-        if knn==1:
+        if knn == 1:
             return topk_per_batch.view(-1)
         return topk_per_batch
 
@@ -474,20 +478,21 @@ def accuracy(output, all_embs, targets, topk=(1,)):
     with torch.no_grad():
         maxk = max(topk)
         preds = prediction(output, all_embs, knn=maxk)
-        pdb.set_trace()
         batch_size = targets.size(0)
         res = []
         for k in topk:
-            i=k
+            i = k
             preds_tmp = preds[:, :i]
             correct_tmp = preds_tmp.eq(targets.view(batch_size, -1).repeat(1, i))
             res.append(torch.sum(correct_tmp).float() / batch_size)
         return res
 
+
 def save_checkpoint(state, is_best, filename):
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, 'best_'+filename)
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -511,6 +516,7 @@ class AverageMeter(object):
     def __str__(self):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
         return fmtstr.format(**self.__dict__)
+
 
 class ProgressMeter(object):
     def __init__(self, num_batches, meters, prefix=""):
