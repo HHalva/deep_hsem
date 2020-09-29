@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH --job-name=train_100p
+#SBATCH -o train_100p_result.txt
+#SBATCH -p gpu
+#SBATCH -c 8
+#SBATCH -t 3-0
+#SBATCH --gres=gpu:2
+#SBATCH --mem-per-cpu=8G
+
+module purge
+module load cuDNN
+conda activate imgnet
+srun python main_poincare.py --resume 100p_nouns_cpu.bin.best_checkp.pth.tar --pretrained --emb_name 100p_nouns_cpu.bin.best $WRKDIR/imgnet 

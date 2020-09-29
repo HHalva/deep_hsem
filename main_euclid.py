@@ -88,7 +88,7 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'N processes per node, which has N GPUs. This is the '
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
-parser.add_argument('--emb_dir', default='/home/hermanni/poincare-embeddings/', type=str, help='location for embedding files')
+parser.add_argument('--emb_dir', default='/proj/herhal/poincare-embeddings-1.0/', type=str, help='location for embedding files')
 parser.add_argument('--emb_name', default=None, type=str, required=True,
                     help='name of the embedding file')
 

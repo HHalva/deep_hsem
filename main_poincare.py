@@ -1,7 +1,8 @@
 import argparse
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["TORCH_HOME"] = "/proj/herhal/deep_hsem/models"
 
 import pdb
 import random
@@ -89,7 +90,7 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'N processes per node, which has N GPUs. This is the '
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
-parser.add_argument('--emb_dir', default='/home/hermanni/poincare-embeddings/', type=str, help='location for embedding files')
+parser.add_argument('--emb_dir', default='/proj/herhal/poincare-embeddings/', type=str, help='location for embedding files')
 parser.add_argument('--emb_name', default=None, type=str, required=True,
                     help='name of the embedding file')
 
@@ -401,7 +402,7 @@ def validate(val_loader, model, criterion, args):
 
             # measure accuracy and record loss
             prec1, prec5 = accuracy(output, imgnet_poinc_wgt,
-                                    target, topk=(1, 10))
+                                    target, topk=(1, 5))
             losses.update(loss.item(), images.size(0))
             top1.update(prec1.item(), images.size(0))
             top5.update(prec5.item(), images.size(0))
@@ -453,7 +454,7 @@ class PoincareEmbVGG(nn.Module):
         dir_vec = self.dir_func(y)
         norms_magnitude = self.norm_func(y)
         v = dir_vec.div(torch.norm(dir_vec, dim=1, keepdim=True))
-        p = F.sigmoid(norms_magnitude)
+        p = torch.sigmoid(norms_magnitude)
         return p*v
 
 
