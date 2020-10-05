@@ -298,10 +298,11 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.distributed:
             train_sampler.set_epoch(epoch)
 
+
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
 
-        # adjust learning rate according to schedule
+        # decay learning-rate according to schedule
         lr_sched.step()
 
         # evaluate on validation set
@@ -390,8 +391,6 @@ def validate(val_loader, model, criterion, args):
     with torch.no_grad():
         end = time.time()
         for i, (images, target) in enumerate(val_loader):
-            if 2 not in target:
-                continue
             if args.gpu is not None:
                 images = images.cuda(args.gpu, non_blocking=True)
             target = target.cuda(args.gpu, non_blocking=True)

@@ -41,7 +41,7 @@ def euc_dist_to_label_emb(pred_embs, all_embs):
 class LorentzEmbDist(Function):
     """Custom function which allows to calculate Lorentzian embedding
        distance between predicted and true embedding location.
-       WARNING!!!: The backprop here assumes that the second input is 
+       WARNING!!!: The backprop here assumes that the second input is
        the known embedding locations and thus has zero gradients so
        be very careful with how you use this!!!"""
     @staticmethod

@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH --job-name=train_10e
+#SBATCH -o train_10e_result.txt
+#SBATCH -p gpu
+#SBATCH -c 8
+#SBATCH -t 3-0
+#SBATCH --gres=gpu:2
+#SBATCH --mem-per-cpu=8G
+
+module purge
+module load cuDNN
+conda activate imgnet
+srun python main_euclid.py --emb_name 10e_nouns.pth $WRKDIR/imgnet 

@@ -1,7 +1,8 @@
 import argparse
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2, 3"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "2, 3"
+os.environ["TORCH_HOME"] = "/proj/herhal/deep_hsem/models"
 
 import pdb
 import random
@@ -120,8 +121,8 @@ def main():
 
     #load euclidean embedding
     euc_emb = torch.load(args.emb_dir+args.emb_name)
-    print('EMBEDDING TYPE:', euc_emb['manifold'])
-    n_emb_dims = euc_emb['embeddings'].shape[1]
+    #print('EMBEDDING TYPE:', euc_emb['conf']['manifold'])
+    n_emb_dims = euc_emb['model']['lt.weight'].shape[1]
     args.n_emb_dims = n_emb_dims
     print('NUM OF DIMENSIONS:', n_emb_dims)
 
@@ -216,7 +217,7 @@ def main_worker(gpu, ngpus_per_node, args):
                                      #momentum=args.momentum,
                                      weight_decay=args.weight_decay)
     else:
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad,
+        optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad,
                                            model.parameters()),
                                            lr=args.lr,
                                            #momentum=args.momentum,
@@ -262,7 +263,7 @@ def main_worker(gpu, ngpus_per_node, args):
     imgnet_labels = train_dataset.classes
     imgnet2emb_idx = [euc_emb['objects'].index(i)
                       for i in imgnet_labels]
-    imgnet_euc_wgt = euc_emb['embeddings'][imgnet2emb_idx]
+    imgnet_euc_wgt = euc_emb['model']['lt.weight'][imgnet2emb_idx]
     imgnet_euc_wgt = imgnet_euc_wgt.float().cuda(non_blocking=True)
 
     if args.distributed:
@@ -288,6 +289,9 @@ def main_worker(gpu, ngpus_per_node, args):
         validate(val_loader, model, criterion, args)
         return
 
+    # track training accuracy on validation set
+    acc_tracker = open("acc_tracker.txt", "w")
+
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
@@ -298,6 +302,8 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # evaluate on validation set
         prec1 = validate(val_loader, model, criterion, args)
+        acc_tracker.write(str(prec1))
+        acc_tracker.write("\n")
 
         # remember best acc@1 and save checkpoint
         is_best = prec1 > best_prec1
@@ -313,6 +319,8 @@ def main_worker(gpu, ngpus_per_node, args):
                 'optimizer': optimizer.state_dict(),
                 'scheduler': lr_sched.state_dict(),
             }, is_best, args.unfreeze, args.emb_name+'_checkp.pth.tar')
+
+    acc_tracker.close()
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -336,7 +344,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if args.gpu is not None:
             images = images.cuda(args.gpu, non_blocking=True)
-        target = target.cuda(args.gpu, non_blocking=True)
+        if torch.cuda.is_available():
+            target = target.cuda(args.gpu, non_blocking=True)
 
         # compute output & loss
         output = model(images)

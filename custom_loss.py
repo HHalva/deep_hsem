@@ -71,5 +71,4 @@ class EucXEntropyLoss(nn.Module):
         #since smaller distance is good need to inver the exponent in
         #softmax
         neg_scores = -1 * scores
-
         return self.xeloss(neg_scores, target_idx)
