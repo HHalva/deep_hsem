@@ -1,2 +1,6 @@
 *.pth.tar
 *.pth
+*.pt
+*.csv
+*.txt
+#100d_euc.bin_checkp.pth.tar 100d_lorentz.bin_checkp.pth.tar 100d_poinc.bin_checkp.pth.tar 10d_euc.bin_checkp.pth.tar 10d_lorentz.bin_checkp.pth.tar 10d_poinc.bin_checkp.pth.tar best_100d_euc.bin_checkp.pth.tar best_100d_lorentz.bin_checkp.pth.tar best_100d_poinc.bin_checkp.pth.tar best_10d_euc.bin_checkp.pth.tar best_10d_lorentz.bin_checkp.pth.tar best_10d_poinc.bin_checkp.pth.tar finetune_10d_euc.bin_checkp.pth.tar

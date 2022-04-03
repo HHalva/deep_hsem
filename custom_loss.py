@@ -1,15 +1,12 @@
 import torch
 from torch import nn
 import torch.backends.cudnn as cudnn
-from poincare_model import PoincareDistance, PoincareDistance2
-from poincare_model import EuclideanDistance
+from poincare import PoincareManifold
+from euclidean import EuclideanManifold
 import pdb
 from torch.autograd import Function
 
 cudnn.fastest = True
-
-pdist = PoincareDistance
-edist = PairwiseDistance()
 
 def poincare_dist_to_label_emb(pred_embs, all_embs):
     batch_size = pred_embs.size(0)
@@ -17,11 +14,11 @@ def poincare_dist_to_label_emb(pred_embs, all_embs):
     n_classes = all_embs.size(0)
     #calculate distance of a predicted embedding to all possible true
     #embedding
-    return PoincareDistance.apply(pred_embs.repeat(1,
-                                  n_classes).view(-1, n_emb_dims),
-                                  all_embs.repeat(batch_size,
-                                  1).cuda(non_blocking=True)).view(
-                                  batch_size, -1)
+    return PoincareManifold().distance(pred_embs.repeat(1,
+                                       n_classes).view(-1, n_emb_dims),
+                                       all_embs.repeat(batch_size,
+                                       1).cuda(non_blocking=True)).view(
+                                       batch_size, -1)
 
 def _assert_no_grad(tensor):
     assert not tensor.requires_grad
@@ -55,11 +52,11 @@ def euc_dist_to_label_emb(pred_embs, all_embs):
     n_classes = all_embs.size(0)
     #calculate distance of a predicted embedding to all possible true
     #embedding
-    return EuclideanDistance(pred_embs.repeat(1,
-                                  n_classes).view(-1, n_emb_dims),
-                                  all_embs.repeat(batch_size,
-                                  1).cuda(non_blocking=True)).view(
-                                  batch_size, -1)
+    return EuclideanManifold().distance(pred_embs.repeat(1,
+                                        n_classes).view(-1, n_emb_dims),
+                                        all_embs.repeat(batch_size,
+                                        1).cuda(non_blocking=True)).view(
+                                        batch_size, -1)
 
 
 class EucXEntropyLoss(nn.Module):
@@ -74,5 +71,4 @@ class EucXEntropyLoss(nn.Module):
         #since smaller distance is good need to inver the exponent in
         #softmax
         neg_scores = -1 * scores
-
         return self.xeloss(neg_scores, target_idx)
