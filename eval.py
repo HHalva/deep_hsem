@@ -215,6 +215,10 @@ def main():
             counter += 1
             target_ss = wn.of2ss(idx_to_class_map[target.item()][1:]+'-n')
 
+            # filter out all but leaf nodes
+            if len(target_ss.hyponyms()) > 0:
+                continue
+
             # filter out all but relevant subgraph
             if not args.subgraph == 'all':
                 hypers = lambda s: s.hypernyms()
@@ -222,9 +226,6 @@ def main():
                 if not subgraph_ss in target_hypers:
                     continue
 
-            # filter out all but leaf nodes
-            if len(target_ss.hyponyms()) > 0:
-                continue
             images = images.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True)
 
@@ -427,7 +428,7 @@ def wn_eval(output, all_embs, target_synset, idx_to_class_dictionary,
             cond_accs_list.append(list(cond_accs[:k]))
             n_leaves_under_list.append(list(num_leaves_under[:k]))
             dists_2_target_list.append(list(dists_to_target[:k]))
-        print("Target:",target_synset, "Preds:", preds_ss[0], "Log leaves\
+        rint("Target:",target_synset, "Preds:", preds_ss[0], "Log leaves\
         under:", torch.tensor(n_leaves_under_list[0][0]+1).log().item(),
         "Cond.Acc.:", cond_accs_list[0][0])
         return cond_accs_list, n_leaves_under_list, dists_2_target_list
